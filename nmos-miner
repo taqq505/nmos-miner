@@ -10,6 +10,23 @@ import argparse
 import signal
 import re
 
+# ターミナル設定を保存する変数
+original_settings = None
+
+def save_terminal_settings():
+    """
+    現在のターミナル設定を保存します。
+    """
+    global original_settings
+    original_settings = termios.tcgetattr(sys.stdin.fileno())
+
+def restore_terminal_settings():
+    """
+    保存したターミナル設定を復元します。
+    """
+    if original_settings:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, original_settings)
+
 def hex_color(hex_code, text):
     r, g, b = tuple(int(hex_code[i:i + 2], 16) for i in (0, 2, 4))
     return f"\033[38;2;{r};{g};{b}m{text}\033[0m"
@@ -19,8 +36,6 @@ def colorize_json(data):
     JSONデータをカラフルに表示するための関数。
     キーと値を色分けしますが、インデント部分はそのまま維持します。
     """
-    import re
-
     json_string = json.dumps(data, indent=2, ensure_ascii=False)
     colorized = ""
     key_value_pattern = re.compile(r'^(\s*)"([^"]+)"(\s*:\s*)(.+)$')  # 正規表現でキーと値を分離
@@ -57,13 +72,16 @@ def fetch_options(api_url):
         return [], {"error": f"Unable to fetch options: {e.reason}"}
 
 def get_key():
+    """
+    キーボード入力を1文字読み取る関数。
+    """
     fd = sys.stdin.fileno()
+    save_terminal_settings()  # ターミナル設定を保存
     old_settings = termios.tcgetattr(fd)
     try:
         tty.setraw(fd)
         ch = sys.stdin.read(1)
-        # Ctrl+C（\x03）を検出したら強制終了
-        if ch == '\x03':
+        if ch == '\x03':  # Ctrl+C
             handle_exit(None, None)
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
@@ -137,7 +155,11 @@ def main(node_url):
     explore_api(node_url)
 
 def handle_exit(signum, frame):
-    print("\nCtrl+C detected. Exiting gracefully. Goodbye!")
+    """
+    SIGINT（Ctrl+C）を捕捉して安全に終了する。
+    """
+    restore_terminal_settings()  # ターミナル設定を復元
+    print("\nCtrl+C detected. Exiting gracefully. Goodbye!\n")
     sys.exit(0)
 
 if __name__ == '__main__':
@@ -147,4 +169,7 @@ if __name__ == '__main__':
     parser.add_argument('node_ip', help='NMOS node IP address')
     args = parser.parse_args()
     node_url = f"http://{args.node_ip}:{args.port}/"
-    main(node_url)
+    try:
+        main(node_url)
+    finally:
+        restore_terminal_settings()  # プログラム終了時にターミナル設定を復元
