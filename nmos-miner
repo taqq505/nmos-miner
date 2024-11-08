@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import json
+import urllib.request
+from urllib.error import URLError
+import sys
+import termios
+import tty
+import argparse
+import signal
+import re
+
+def hex_color(hex_code, text):
+    r, g, b = tuple(int(hex_code[i:i + 2], 16) for i in (0, 2, 4))
+    return f"\033[38;2;{r};{g};{b}m{text}\033[0m"
+
+def colorize_json(data):
+    """
+    JSONデータをカラフルに表示するための関数。
+    キーと値を色分けしますが、インデント部分はそのまま維持します。
+    """
+    import re
+
+    json_string = json.dumps(data, indent=2, ensure_ascii=False)
+    colorized = ""
+    key_value_pattern = re.compile(r'^(\s*)"([^"]+)"(\s*:\s*)(.+)$')  # 正規表現でキーと値を分離
+
+    for line in json_string.splitlines():
+        match = key_value_pattern.match(line)
+        if match:
+            indent, key, separator, value = match.groups()
+            key_colored = hex_color("5c9755", f'"{key}"')  # 緑色 (キー)
+            separator_colored = hex_color("d0d0d0", separator)  # 白色 (セパレーター)
+            value_colored = hex_color("d0d0d0", value)  # 白色 (値)
+            colorized += f"{indent}{key_colored}{separator_colored}{value_colored}\n"
+        elif line.strip().startswith('{') or line.strip().startswith('}'):  # 波括弧
+            colorized += hex_color("368cd6", line) + "\n"  # 青色
+        elif line.strip().startswith('[') or line.strip().startswith(']'):  # 角括弧
+            colorized += hex_color("37a3f0", line) + "\n"  # シアン色
+        else:  # その他
+            colorized += hex_color("d0d0d0", line) + "\n"  # 白色
+    return colorized
+
+def fetch_options(api_url):
+    try:
+        with urllib.request.urlopen(api_url) as response:
+            data = response.read()
+            json_data = json.loads(data)
+            if isinstance(json_data, list):
+                options = [item for item in json_data if isinstance(item, str) and item.endswith("/")]
+                return options, json_data
+            elif isinstance(json_data, dict):
+                return [], json_data
+            else:
+                return [], {"message": "Unexpected data format"}
+    except URLError as e:
+        return [], {"error": f"Unable to fetch options: {e.reason}"}
+
+def get_key():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        ch = sys.stdin.read(1)
+        # Ctrl+C（\x03）を検出したら強制終了
+        if ch == '\x03':
+            handle_exit(None, None)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
+
+def menu(options, current_url, json_data=None):
+    current_index = 0
+    while True:
+        sys.stdout.write("\033[H\033[J")
+        print(f"Current Endpoint: {current_url}\n")
+        if json_data is not None:
+            print("Retrieved JSON Data:\n")
+            print(colorize_json(json_data))
+        else:
+            for idx, option in enumerate(options):
+                if idx == current_index:
+                    print(f"> {option}")
+                else:
+                    print(f"  {option}")
+        print("\n" * 2)
+        print("Use ↑ and ↓ to navigate, Enter to select, ← to go back:")
+        key = get_key()
+        if key == "\x1b":
+            key2 = get_key()
+            key3 = get_key()
+            if key2 == "[":
+                if key3 == "A" and json_data is None:
+                    current_index = (current_index - 1) % len(options)
+                elif key3 == "B" and json_data is None:
+                    current_index = (current_index + 1) % len(options)
+                elif key3 == "D":
+                    return "BACK"
+        elif key in ("\n", "\r") and json_data is None:
+            return options[current_index]
+
+def explore_api(base_url):
+    history = [base_url]
+    while True:
+        current_url = history[-1]
+        options, data = fetch_options(current_url)
+        if "error" in data:
+            print(f"\nError fetching data from {current_url}: {data['error']}")
+            break
+        if not options:
+            action = menu([], current_url, json_data=data)
+            if action == "BACK":
+                if len(history) > 1:
+                    history.pop()
+                else:
+                    print("\nAlready at the root level.")
+            else:
+                break
+        else:
+            if "Exit" in options:
+                options.remove("Exit")
+                options.append("Exit")
+            selected = menu(options + ["Exit"], current_url)
+            if selected == "Exit":
+                print("\nExploration ended.")
+                break
+            elif selected == "BACK":
+                if len(history) > 1:
+                    history.pop()
+                else:
+                    print("\nAlready at the root level.")
+            else:
+                history.append(f"{current_url}{selected}")
+
+def main(node_url):
+    print(f"Target URL: {node_url}")
+    explore_api(node_url)
+
+def handle_exit(signum, frame):
+    print("\nCtrl+C detected. Exiting gracefully. Goodbye!")
+    sys.exit(0)
+
+if __name__ == '__main__':
+    signal.signal(signal.SIGINT, handle_exit)
+    parser = argparse.ArgumentParser(description="Usage: nmos-sdp-get [-p] node_ip")
+    parser.add_argument('-p', '--port', type=str, default="80", help="NMOS node IS-04 port number")
+    parser.add_argument('node_ip', help='NMOS node IP address')
+    args = parser.parse_args()
+    node_url = f"http://{args.node_ip}:{args.port}/"
+    main(node_url)
