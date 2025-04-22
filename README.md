@@ -6,3 +6,9 @@ NMOS探索用。RestAPIの階層の中を検索できるツールです。
   $ cd nmos-miner
   $ ./nmos-miner {node_IP}:{port_no}
 ```
+
+必要に応じて、ポートの後ろに”/x-nmos”などを追加してください。
+
+例：host$ ./nmos-miner 10.59.1.220:18870/x-nmos
+
+
