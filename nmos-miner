@@ -164,12 +164,18 @@ def handle_exit(signum, frame):
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, handle_exit)
-    parser = argparse.ArgumentParser(description="Usage: nmos-sdp-get [-p] node_ip")
-    parser.add_argument('-p', '--port', type=str, default="80", help="NMOS node IS-04 port number")
-    parser.add_argument('node_ip', help='NMOS node IP address')
+    parser = argparse.ArgumentParser(description="Usage: nmos-sdp-get node_ip[:port]")
+    parser.add_argument('node_addr', help='NMOS node IP address (with optional port, e.g. 192.168.1.100:8080)')
     args = parser.parse_args()
-    node_url = f"http://{args.node_ip}:{args.port}/"
+
+    if ':' in args.node_addr:
+        ip, port = args.node_addr.split(':', 1)
+    else:
+        ip = args.node_addr
+        port = "80"
+
+    node_url = f"http://{ip}:{port}/"
     try:
         main(node_url)
     finally:
-        restore_terminal_settings()  # プログラム終了時にターミナル設定を復元
+        restore_terminal_settings()# プログラム終了時にターミナル設定を復元
