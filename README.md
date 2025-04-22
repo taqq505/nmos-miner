@@ -6,5 +6,5 @@ NMOS探索用。NMOS用というか、restAPIなら多分いける。
 ```
   $ git clone https://github.com/taqq505/nmos-miner
   $ cd nmos-miner
-  $ ./nmos-miner {node_IP} -p {port_no}
+  $ ./nmos-miner {node_IP}:{port_no}
 ```
