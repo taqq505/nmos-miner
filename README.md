@@ -1,7 +1,5 @@
 # nmos-miner
-NMOS探索用。NMOS用というか、restAPIなら多分いける。
-ブラウザ無い時に便利。
-ただNMOSの中を掘っていくためだけのツール
+NMOS探索用。RestAPIの階層の中を検索できるツールです。
 
 ```
   $ git clone https://github.com/taqq505/nmos-miner
