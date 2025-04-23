@@ -1,5 +1,6 @@
 # nmos-miner
 NMOS探索用。RestAPIの階層の中を検索できるツールです。
+Python3.x系で動作します。追加モジュールなどは必要ございません。
 
 ```
   $ git clone https://github.com/taqq505/nmos-miner
